@@ -1,0 +1,205 @@
+// Multi-Tenant SaaS Prisma Schema
+// Church → Campus → User hierarchy with tenant isolation
+// Rule: churchId required on all tenant data; campusId optional (NULL = org-wide)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CORE TENANT MODELS
+// ═══════════════════════════════════════════════════════════════
+
+model Church {
+  id               String   @id @default(uuid())
+  name             String
+  slug             String   @unique
+  authProviderId   String?  @unique @map("auth_provider_id") // Clerk org ID, Auth0 tenant, etc.
+  plan             String   @default("starter")
+  billingCustomerId String? @map("billing_customer_id")
+  stripeSubscriptionId String? @map("stripe_subscription_id")
+  planMemberLimit  Int      @default(200) @map("plan_member_limit")
+  settings         Json?    // denomination, timezone, logo, colors, etc.
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  campuses      Campus[]
+  users         User[]
+  invites       Invite[]
+  guests        Guest[]
+  tasks         Task[]
+  events        Event[]
+  careNotes     CareNote[]
+  prayerRequests PrayerRequest[]
+
+  @@map("churches")
+}
+
+model Campus {
+  id         String   @id @default(uuid())
+  churchId   String   @map("church_id")
+  name       String
+  address    String?
+  pastorName String?  @map("pastor_name")
+  isMain     Boolean  @default(false) @map("is_main")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  church         Church   @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  users          User[]
+  invites        Invite[]
+  guests         Guest[]
+  tasks          Task[]
+  events         Event[]
+  careNotes      CareNote[]
+  prayerRequests PrayerRequest[]
+
+  @@index([churchId])
+  @@map("campuses")
+}
+
+model User {
+  id          String    @id @default(uuid())
+  churchId    String    @map("church_id")
+  campusId    String?   @map("campus_id")
+  authUserId  String    @unique @map("auth_user_id") // Clerk user ID, Auth0 sub, etc.
+  email       String
+  fullName    String?   @map("full_name")
+  avatarUrl   String?   @map("avatar_url")
+  role        String    @default("staff") // admin | pastor | staff | volunteer
+  isActive    Boolean   @default(true) @map("is_active")
+  invitedById String?   @map("invited_by")
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  church        Church   @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus        Campus?  @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  invitedBy     User?    @relation("InvitedUsers", fields: [invitedById], references: [id])
+  invitedUsers  User[]   @relation("InvitedUsers")
+  invitesSent   Invite[] @relation("InvitedBy")
+
+  @@index([churchId])
+  @@index([campusId])
+  @@index([authUserId])
+  @@map("users")
+}
+
+model Invite {
+  id          String    @id @default(uuid())
+  churchId    String    @map("church_id")
+  campusId    String?   @map("campus_id")
+  email       String
+  role        String    @default("staff")
+  token       String    @unique @default(cuid())
+  invitedById String?   @map("invited_by")
+  acceptedAt  DateTime? @map("accepted_at")
+  expiresAt   DateTime  @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  church    Church  @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus    Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  invitedBy User?   @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@index([token])
+  @@map("invites")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TENANT-SCOPED DATA MODELS
+// churchId = tenant isolation; campusId = optional campus filter (NULL = org-wide)
+// ═══════════════════════════════════════════════════════════════
+
+model Guest {
+  id        String   @id @default(uuid())
+  churchId  String   @map("church_id")
+  campusId  String?  @map("campus_id")
+  name      String
+  email     String?
+  phone     String?
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  church Church  @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@index([campusId])
+  @@map("guests")
+}
+
+model Task {
+  id                String    @id @default(uuid())
+  churchId          String    @map("church_id")
+  campusId          String?   @map("campus_id")
+  title             String
+  description       String?
+  status            String    @default("pending")
+  dueDate           DateTime? @map("due_date")
+  assignedUserId    String?   @map("assigned_user_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  church Church  @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@index([campusId])
+  @@map("tasks")
+}
+
+model Event {
+  id          String   @id @default(uuid())
+  churchId    String   @map("church_id")
+  campusId    String?  @map("campus_id")
+  name        String
+  date        DateTime
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  church Church  @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@index([campusId])
+  @@map("events")
+}
+
+model CareNote {
+  id        String   @id @default(uuid())
+  churchId  String   @map("church_id")
+  campusId  String?  @map("campus_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  church Church  @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@index([campusId])
+  @@map("care_notes")
+}
+
+model PrayerRequest {
+  id        String   @id @default(uuid())
+  churchId  String   @map("church_id")
+  campusId  String?  @map("campus_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  church Church  @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@index([campusId])
+  @@map("prayer_requests")
+}

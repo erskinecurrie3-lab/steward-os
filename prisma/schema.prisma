@@ -1,0 +1,583 @@
+// StewardOS Multi-Church Schema
+// Core tenant tables: churches, campuses, users, invites
+// Data tables: guests, tasks, events, care_notes, prayer_requests
+// Rule: church_id required, campus_id optional (NULL = org-wide)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Church {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String
+  slug              String   @unique
+  clerkOrgId        String?  @unique @map("clerk_org_id")
+  plan              String   @default("starter") @map("plan")
+  stripeCustomerId  String?  @map("stripe_customer_id")
+  stripeSubId       String?  @map("stripe_sub_id")
+  planMemberLimit   Int      @default(200) @map("plan_member_limit")
+  denomination      String?
+  timezone          String   @default("America/New_York")
+  logoUrl           String?  @map("logo_url")
+  primaryColor      String   @default("#C9A84C") @map("primary_color")
+  websiteUrl        String?  @map("website_url")
+  address           String?
+  churchSettings    Json?    @map("church_settings")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  resources          Resource[]
+  followUpSequences  FollowUpSequence[]
+  integrationConfigs IntegrationConfig[]
+  webhookLogs        WebhookLog[]
+  syncJobs           SyncJob[]
+  campuses      Campus[]
+  users         User[]
+  invites       Invite[]
+  guests        Guest[]
+  tasks         Task[]
+  events        Event[]
+  careNotes       CareNote[]
+  prayerRequests  PrayerRequest[]
+  journeyTemplates JourneyTemplate[]
+  volunteerReferences VolunteerReference[]
+  groups          Group[]
+  automationWorkflows AutomationWorkflow[]
+
+  @@map("churches")
+}
+
+model Group {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId        String   @map("church_id") @db.Uuid
+  campusId        String?  @map("campus_id") @db.Uuid
+  name            String
+  description     String?
+  schedule        String?
+  membershipsCount Int     @default(0) @map("memberships_count")
+  externalSource  String? @map("external_source")
+  externalId      String? @map("external_id")
+  pcoGroupTypeId  String? @map("pco_group_type_id")
+  virtualLocationUrl String? @map("virtual_location_url")
+  listed          Boolean  @default(true)
+  archivedAt      DateTime? @map("archived_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  church Church  @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@index([campusId])
+  @@index([churchId, externalSource, externalId])
+  @@map("groups")
+}
+
+model Campus {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId   String   @map("church_id") @db.Uuid
+  name       String
+  address    String?
+  pastorName String?  @map("pastor_name")
+  isMain     Boolean  @default(false) @map("is_main")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  church         Church   @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  invites        Invite[]
+  users          User[]
+  guests         Guest[]
+  tasks          Task[]
+  events         Event[]
+  careNotes         CareNote[]
+  prayerRequests    PrayerRequest[]
+  journeyTemplates  JourneyTemplate[]
+  volunteerReferences VolunteerReference[]
+  groups           Group[]
+
+  @@index([churchId])
+  @@map("campuses")
+}
+
+model User {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId    String    @map("church_id") @db.Uuid
+  campusId    String?   @map("campus_id") @db.Uuid
+  clerkUserId String    @unique @map("clerk_user_id")
+  email       String
+  fullName    String?   @map("full_name")
+  avatarUrl   String?   @map("avatar_url")
+  role        String    @default("staff")
+  isActive    Boolean   @default(true) @map("is_active")
+  invitedById      String?   @map("invited_by") @db.Uuid
+  volunteerProfile         Json?    @map("volunteer_profile")
+  notificationPreferences  Json?    @map("notification_preferences")
+  lastLoginAt              DateTime? @map("last_login_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  church        Church   @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus        Campus?  @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  invitedBy     User?    @relation("InvitedUsers", fields: [invitedById], references: [id])
+  invitedUsers  User[]   @relation("InvitedUsers")
+  invitesSent   Invite[] @relation("InvitedBy")
+
+  @@index([churchId])
+  @@index([campusId])
+  @@map("users")
+}
+
+model Invite {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId    String    @map("church_id") @db.Uuid
+  campusId    String?   @map("campus_id") @db.Uuid
+  email       String
+  role        String    @default("staff")
+  token       String    @unique @default(dbgenerated("encode(gen_random_bytes(32), 'hex')"))
+  invitedById String?   @map("invited_by") @db.Uuid
+  acceptedAt  DateTime? @map("accepted_at")
+  expiresAt   DateTime  @default(dbgenerated("(NOW() + INTERVAL '7 days')")) @map("expires_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  church    Church  @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus    Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  invitedBy User?   @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@index([token])
+  @@map("invites")
+}
+
+model SmsOptOut {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone      String   @db.VarChar(20)
+  optedOutAt DateTime @default(now()) @map("opted_out_at")
+
+  @@unique([phone])
+  @@index([phone])
+  @@map("sms_opt_outs")
+}
+
+model Guest {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId           String    @map("church_id") @db.Uuid
+  campusId           String?   @map("campus_id") @db.Uuid
+  name               String
+  email              String?
+  phone              String?
+  notes              String?
+  assignedVolunteer  String?   @map("assigned_volunteer")
+  status             String?   @default("new_visitor")
+  journeyStage       String?   @default("stage_1_welcome") @map("journey_stage")
+  isAtRisk           Boolean   @default(false) @map("is_at_risk")
+  lastSeen           DateTime? @map("last_seen")
+  spiritualBackground String?  @map("spiritual_background")
+  familyStatus       String?   @map("family_status")
+  externalSource     String?   @map("external_source")
+  externalId         String?   @map("external_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  church     Church    @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus     Campus?   @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  tasks      Task[]
+  careNotes  CareNote[]
+
+  @@index([churchId])
+  @@index([campusId])
+  @@index([churchId, externalSource, externalId])
+  @@map("guests")
+}
+
+model Task {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId           String    @map("church_id") @db.Uuid
+  campusId           String?   @map("campus_id") @db.Uuid
+  guestId            String?   @map("guest_id") @db.Uuid
+  title              String
+  description        String?
+  status             String    @default("pending")
+  dueDate            DateTime? @map("due_date")
+  assignedVolunteer      String?   @map("assigned_volunteer")
+  assignedVolunteerEmail String?   @map("assigned_volunteer_email")
+  taskType               String?   @default("general") @map("task_type")
+  priority           String?   @default("normal")
+  guestName          String?   @map("guest_name")
+  guestEmail         String?   @map("guest_email")
+  workflowId         String?   @map("workflow_id") @db.Uuid
+  aiMessageSent      String?   @map("ai_message_sent")
+  aiHandledAt        DateTime? @map("ai_handled_at")
+  completedAt        DateTime? @map("completed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  church Church  @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  guest  Guest?  @relation(fields: [guestId], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@index([campusId])
+  @@index([guestId])
+  @@map("tasks")
+}
+
+model Event {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId        String    @map("church_id") @db.Uuid
+  campusId        String?   @map("campus_id") @db.Uuid
+  name            String
+  date            DateTime
+  description     String?
+  eventType       String?   @default("service") @map("event_type")
+  endDate         DateTime? @map("end_date")
+  location        String?
+  capacity        Int?
+  isPublic        Boolean   @default(true) @map("is_public")
+  rsvpEnabled     Boolean   @default(true) @map("rsvp_enabled")
+  imageUrl        String?   @map("image_url")
+  ministry        String?
+  rsvpCount       Int       @default(0) @map("rsvp_count")
+  externalSource  String?   @map("external_source")
+  externalId      String?   @map("external_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  church Church   @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus Campus?  @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  rsvps  EventRsvp[]
+
+  @@index([churchId])
+  @@index([campusId])
+  @@index([churchId, externalSource, externalId])
+  @@map("events")
+}
+
+model EventRsvp {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId    String   @map("event_id") @db.Uuid
+  guestId    String?  @map("guest_id") @db.Uuid
+  guestName  String?  @map("guest_name")
+  guestEmail String?  @map("guest_email")
+  status     String   @default("attending")
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("event_rsvps")
+}
+
+model IntegrationConfig {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId            String    @map("church_id") @db.Uuid
+  provider            String
+  status              String    @default("pending")
+  accessToken         String?   @map("access_token")
+  refreshToken        String?   @map("refresh_token")
+  expiresAt           DateTime? @map("expires_at")
+  credentials         Json?
+  syncEnabled         Boolean   @default(true) @map("sync_enabled")
+  syncIntervalMinutes Int      @default(60) @map("sync_interval_minutes")
+  lastSyncAt          DateTime? @map("last_sync_at")
+  lastSyncStatus      String?   @map("last_sync_status")
+  lastError           String?   @map("last_error")
+  webhookSecret       String?   @map("webhook_secret")
+  webhookUrl          String?   @map("webhook_url")
+  mappedFields        Json?     @map("mapped_fields")
+  syncStats           Json?     @map("sync_stats")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  church Church  @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  webhookLogs WebhookLog[]
+  syncJobs    SyncJob[]
+
+  @@unique([churchId, provider])
+  @@index([churchId])
+  @@map("integration_configs")
+}
+
+model SyncJob {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId       String    @map("church_id") @db.Uuid
+  configId       String?   @map("config_id") @db.Uuid
+  provider       String
+  syncType       String    @map("sync_type")
+  status         String
+  startedAt      DateTime  @map("started_at")
+  durationMs     Int?      @map("duration_ms")
+  recordsSynced  Int       @default(0) @map("records_synced")
+  recordsFailed  Int       @default(0) @map("records_failed")
+  errorMessage   String?   @map("error_message")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  church Church            @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  config IntegrationConfig? @relation(fields: [configId], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@index([configId])
+  @@map("sync_jobs")
+}
+
+model WebhookLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId       String   @map("church_id") @db.Uuid
+  configId       String?  @map("config_id") @db.Uuid
+  provider       String
+  eventType      String   @map("event_type")
+  payload        Json?
+  status         String   @default("received")
+  error          String?
+  ipAddress      String?  @map("ip_address")
+  signatureValid Boolean? @map("signature_valid")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  church Church            @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  config IntegrationConfig? @relation(fields: [configId], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@index([configId])
+  @@map("webhook_logs")
+}
+
+model CareNote {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId  String   @map("church_id") @db.Uuid
+  campusId  String?  @map("campus_id") @db.Uuid
+  guestId   String?  @map("guest_id") @db.Uuid
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  church Church  @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  guest  Guest?  @relation(fields: [guestId], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@index([campusId])
+  @@index([guestId])
+  @@map("care_notes")
+}
+
+model FollowUpSequence {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId        String   @map("church_id") @db.Uuid
+  name            String
+  triggerType     String   @default("new_visitor_email_sequence") @map("trigger_type")
+  journeyStage    String?  @default("stage_1_welcome") @map("journey_stage")
+  channel         String   @default("email")
+  delayDays       Int      @default(0) @map("delay_days")
+  messageTemplate String?  @map("message_template")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  church Church @relation(fields: [churchId], references: [id], onDelete: Cascade)
+
+  @@index([churchId])
+  @@index([churchId, triggerType])
+  @@map("follow_up_sequences")
+}
+
+model AutomationWorkflow {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId    String   @map("church_id") @db.Uuid
+  name        String
+  triggerEvent String  @map("trigger_event")
+  steps       Json     @default("[]")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  church Church @relation(fields: [churchId], references: [id], onDelete: Cascade)
+
+  @@index([churchId])
+  @@index([churchId, triggerEvent])
+  @@map("automation_workflows")
+}
+
+model PrayerRequest {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId             String   @map("church_id") @db.Uuid
+  campusId             String?  @map("campus_id") @db.Uuid
+  content              String
+  requestText          String?  @map("request_text")
+  submitterName        String?  @map("submitter_name")
+  submitterEmail       String?  @map("submitter_email")
+  submitterPhone       String?  @map("submitter_phone")
+  isAnonymous          Boolean  @default(false) @map("is_anonymous")
+  category             String?  @default("other")
+  urgency              String?  @default("medium")
+  status               String   @default("new")
+  pastoralNotes        String?  @map("pastoral_notes")
+  aiSummary            String?  @map("ai_summary")
+  aiFollowUpAction     String?  @map("ai_follow_up_action")
+  aiSuggestedResponder String?  @map("ai_suggested_responder")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  church Church  @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@index([campusId])
+  @@map("prayer_requests")
+}
+
+model JourneyTemplate {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId     String    @map("church_id") @db.Uuid
+  campusId     String?   @map("campus_id") @db.Uuid
+  title        String
+  description  String?
+  category     String    @default("custom")
+  touchpoints  Int       @default(0)
+  days         Int       @default(30)
+  seedId       String?   @map("seed_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  church    Church   @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus    Campus?  @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  touchpointList JourneyTouchpoint[]
+  stages    JourneyStage[]
+
+  @@index([churchId])
+  @@map("journey_templates")
+}
+
+model JourneyTouchpoint {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  journeyTemplateId String  @map("journey_template_id") @db.Uuid
+  orderIndex       Int      @default(0) @map("order_index")
+  title            String
+  description      String?
+  type             String   @default("manual")
+  daysOffset       Int      @default(0) @map("days_offset")
+  config           Json?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  journeyTemplate JourneyTemplate @relation(fields: [journeyTemplateId], references: [id], onDelete: Cascade)
+
+  @@index([journeyTemplateId])
+  @@map("journey_touchpoints")
+}
+
+model JourneyStage {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  journeyTemplateId String  @map("journey_template_id") @db.Uuid
+  orderIndex       Int      @default(0) @map("order_index")
+  name             String
+  label            String
+  description      String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  journeyTemplate JourneyTemplate @relation(fields: [journeyTemplateId], references: [id], onDelete: Cascade)
+
+  @@index([journeyTemplateId])
+  @@map("journey_stages")
+}
+
+model Resource {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId    String   @map("church_id") @db.Uuid
+  title       String
+  description String?
+  category    String   @default("other") @map("category")
+  tags        Json     @default("[]") @map("tags")
+  fileUrl     String?  @map("file_url")
+  fileName    String?  @map("file_name")
+  fileType    String?  @map("file_type")
+  isPublic    Boolean  @default(true) @map("is_public")
+  uploadedBy  String?  @map("uploaded_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  church Church @relation(fields: [churchId], references: [id], onDelete: Cascade)
+
+  @@index([churchId])
+  @@index([category])
+  @@map("resources")
+}
+
+model VolunteerReference {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  churchId   String   @map("church_id") @db.Uuid
+  campusId   String?  @map("campus_id") @db.Uuid
+  filename   String
+  storagePath String @map("storage_path")
+  url        String?
+  fileSize   Int?    @map("file_size")
+  mimeType  String?  @map("mime_type")
+  uploadedBy String? @map("uploaded_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  church Church @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+
+  @@index([churchId])
+  @@map("volunteer_references")
+}
+
+model Lead {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstName  String?  @map("first_name")
+  lastName   String?  @map("last_name")
+  email      String
+  churchName String?  @map("church_name")
+  source     String   @default("website")
+  status     String   @default("new")
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("leads")
+}
+
+model DemoBooking {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstName       String?  @map("first_name")
+  lastName        String?  @map("last_name")
+  email           String
+  churchName      String   @map("church_name")
+  attendanceSize  String?  @map("attendance_size")
+  preferredDate   String?  @map("preferred_date")
+  preferredTime   String?  @map("preferred_time")
+  status          String   @default("pending")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("demo_bookings")
+}
+
+model Testimonial {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authorName String   @map("author_name")
+  authorTitle String? @map("author_title")
+  churchName String?  @map("church_name")
+  quote      String
+  isVisible  Boolean  @default(true) @map("is_visible")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("testimonials")
+}
+
+model BlogPost {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title          String
+  excerpt        String?
+  content        String?
+  category       String   @default("leadership")
+  authorName     String   @default("StewardOS Team") @map("author_name")
+  publishedDate  DateTime? @map("published_date") @db.Date
+  coverImageUrl  String?  @map("cover_image_url")
+  status         String   @default("draft")
+  slug           String?  @unique
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([slug])
+  @@map("blog_posts")
+}

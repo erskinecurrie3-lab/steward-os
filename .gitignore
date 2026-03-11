@@ -8,6 +8,8 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
 
 # next.js
 /.next/
@@ -27,6 +29,9 @@ yarn-error.log*
 
 # local env files
 .env*.local
+
+# Legacy migration (user data)
+/data-export/
 
 # vercel
 .vercel
