@@ -58,12 +58,17 @@ export default function CheckoutPage() {
         credentials: "include",
       });
       const json = await res.json();
-      if (json.url) window.location.href = json.url;
-      else setError(json.error || "Failed to start checkout.");
-    } catch {
-      setError("Something went wrong. Please try again.");
+      if (!res.ok) throw new Error(json.error || "Checkout failed");
+      if (json.url) {
+        window.location.href = json.url;
+        return;
+      }
+      throw new Error(json.error || "No checkout URL received. Please complete onboarding and try from Dashboard → Settings → Billing.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setLoading(null);
     }
-    setLoading(null);
   };
 
   return (

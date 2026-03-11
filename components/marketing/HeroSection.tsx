@@ -20,25 +20,25 @@ export default function HeroSection() {
       </div>
 
       <div className="relative max-w-7xl mx-auto px-6 lg:px-8 py-20 lg:py-28 text-center">
-        <motion.div variants={fadeUp} initial="hidden" animate="show" custom={0} className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#C9A84C]/25 bg-[#C9A84C]/8 mb-8 backdrop-blur-sm">
+        <motion.div variants={fadeUp} initial={false} animate="show" custom={0} className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#C9A84C]/25 bg-[#C9A84C]/8 mb-8 backdrop-blur-sm">
           <Sparkles size={12} className="text-[#C9A84C]" />
           <span className="text-[#E8D5A3] text-xs font-medium tracking-widest uppercase">AI-Powered Church Care Operating System</span>
         </motion.div>
 
-        <motion.h1 variants={fadeUp} initial="hidden" animate="show" custom={1} className="text-5xl sm:text-6xl lg:text-8xl font-bold text-white leading-[1.02] tracking-tight max-w-5xl mx-auto mb-6">
+        <motion.h1 variants={fadeUp} initial={false} animate="show" custom={1} className="text-5xl sm:text-6xl lg:text-8xl font-bold text-white leading-[1.02] tracking-tight max-w-5xl mx-auto mb-6">
           Never wonder if someone{" "}
           <span className="relative">
             <span className="text-[#C9A84C]">slipped through</span>
-            <motion.span initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ delay: 0.8, duration: 0.7, ease: [0.22, 1, 0.36, 1] }} className="absolute -bottom-1 left-0 right-0 h-[3px] bg-gradient-to-r from-[#C9A84C] to-[#E8D5A3] rounded-full origin-left" />
+            <motion.span initial={false} animate={{ scaleX: 1 }} transition={{ delay: 0.8, duration: 0.7, ease: [0.22, 1, 0.36, 1] }} className="absolute -bottom-1 left-0 right-0 h-[3px] bg-gradient-to-r from-[#C9A84C] to-[#E8D5A3] rounded-full origin-left" />
           </span>{" "}
           the cracks again.
         </motion.h1>
 
-        <motion.p variants={fadeUp} initial="hidden" animate="show" custom={2} className="text-lg lg:text-xl text-white/50 font-light max-w-2xl mx-auto mb-10 leading-relaxed">
+        <motion.p variants={fadeUp} initial={false} animate="show" custom={2} className="text-lg lg:text-xl text-white/50 font-light max-w-2xl mx-auto mb-10 leading-relaxed">
           StewardOS installs a clear, personalized visitor journey system in your church in 30 days — so every guest is seen, followed up with, and on a pathway to belong.
         </motion.p>
 
-        <motion.div variants={fadeUp} initial="hidden" animate="show" custom={3} className="flex flex-col sm:flex-row gap-4 justify-center mb-14">
+        <motion.div variants={fadeUp} initial={false} animate="show" custom={3} className="flex flex-col sm:flex-row gap-4 justify-center mb-14">
           <Link href="/signup" className="group inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-[#C9A84C] text-[#0A0A0A] font-bold text-base hover:bg-[#E8D5A3] transition-all duration-300 shadow-[0_0_30px_rgba(201,168,76,0.3)] hover:shadow-[0_0_50px_rgba(201,168,76,0.5)] hover:-translate-y-0.5">
             Start Free 14-Day Trial
             <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
@@ -48,7 +48,7 @@ export default function HeroSection() {
           </Link>
         </motion.div>
 
-        <motion.div variants={fadeUp} initial="hidden" animate="show" custom={4} className="flex flex-wrap justify-center gap-6 text-sm text-white/30 mb-16">
+        <motion.div variants={fadeUp} initial={false} animate="show" custom={4} className="flex flex-wrap justify-center gap-6 text-sm text-white/30 mb-16">
           {["No credit card required", "Setup in under 30 days", "Cancel anytime", "Ministry-first support"].map((t) => (
             <span key={t} className="flex items-center gap-1.5">
               <CheckCircle size={13} className="text-[#C9A84C]/60" />
@@ -57,7 +57,7 @@ export default function HeroSection() {
           ))}
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 60, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.6, duration: 0.9, ease: [0.22, 1, 0.36, 1] }} className="relative max-w-5xl mx-auto hidden sm:block">
+        <motion.div initial={false} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.6, duration: 0.9, ease: [0.22, 1, 0.36, 1] }} className="relative max-w-5xl mx-auto hidden sm:block">
           <div className="absolute -inset-4 bg-[#C9A84C]/10 rounded-3xl blur-2xl" />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0A0A0A] z-10 pointer-events-none" style={{ top: "65%" }} />
           <div className="relative rounded-2xl border border-white/10 shadow-[0_40px_100px_rgba(0,0,0,0.6)] overflow-hidden">

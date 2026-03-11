@@ -26,7 +26,7 @@ export async function getOrCreateChurchCustomer(
   });
 
   const existing = customers.data.find(
-    (c) => c.metadata?.churchId === churchId
+    (c) => c.metadata?.churchId === churchId || c.metadata?.church_id === churchId
   );
   if (existing) return existing.id;
 

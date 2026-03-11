@@ -88,9 +88,14 @@ function BillingContent() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Checkout failed");
-      if (json.url) window.location.href = json.url;
+      if (json.url) {
+        window.location.href = json.url;
+        return; // Keep loading state while redirecting
+      }
+      throw new Error(json.error || "No checkout URL received. Check Stripe price IDs in .env.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Checkout failed");
+    } finally {
       setCheckoutLoading(null);
     }
   };
