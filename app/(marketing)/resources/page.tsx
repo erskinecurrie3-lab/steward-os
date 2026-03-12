@@ -18,7 +18,7 @@ type Post = {
 };
 
 export default function ResourcesPage() {
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<Post[]>(staticPosts);
   const [filter, setFilter] = useState("all");
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export default function ResourcesPage() {
       .catch(() => {});
   }, []);
 
-  const displayPosts = posts.length > 0 ? posts : staticPosts;
+  const displayPosts = posts;
   const filtered = filter === "all" ? displayPosts : displayPosts.filter((p) => p.category === filter);
 
   return (
